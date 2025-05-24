@@ -49,6 +49,8 @@ save_steps: 25
 seed: 42
 
 # Script arguments
+public_maddr: "/ip4/38.101.215.12/tcp/30002" # Biarkan jika memang untuk setup distributed Anda
+host_maddr: "/ip4/0.0.0.0/tcp/38331"       # Biarkan jika memang untuk setup distributed Anda
 max_rounds: 10000
 
 # Model-specific arguments
