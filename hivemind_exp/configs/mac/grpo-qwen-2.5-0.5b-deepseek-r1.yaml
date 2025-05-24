@@ -1,19 +1,20 @@
 # Model arguments
 model_revision: main
-torch_dtype: bfloat16
-bf16: true
+torch_dtype: float32
+attn_implementation: eager
+bf16: false
 tf32: false
 
 # Dataset arguments
 dataset_id_or_path: 'openai/gsm8k'
 
 # Training arguments
-max_steps: 20 # Original 450
-gradient_accumulation_steps: 4
-gradient_checkpointing: true
+max_steps: 5 # Original 450
+gradient_accumulation_steps: 2
+gradient_checkpointing: false
 gradient_checkpointing_kwargs:
-  use_reentrant: false
-learning_rate: 5.0e-7 # 1.0e-6 as in the deepseek math paper 5-e7 from https://hijkzzz.notion.site/unraveling-rlhf-and-its-variants-engineering-insights#147d9a33ecc9806090f3d5c749d31f05
+use_reentrant: false
+learning_rate: 1.0e-6 # 1.0e-6 as in the deepseek math paper 5-e7 from https://hijkzzz.notion.site/unraveling-rlhf-and-its-variants-engineering-insights#147d9a33ecc9806090f3d5c749d31f05
 lr_scheduler_type: cosine
 warmup_ratio: 0.03
 
@@ -21,9 +22,22 @@ warmup_ratio: 0.03
 use_vllm: false
 num_generations: 2
 per_device_train_batch_size: 2
-beta: 0.001 # 0.04 as in the deepseek math paper 0.001 from https://hijkzzz.notion.site/unraveling-rlhf-and-its-variants-engineering-insights#147d9a33ecc9806090f3d5c749d31f05
+beta: 0.04 # 0.04 as in the deepseek math paper 0.001 from https://hijkzzz.notion.site/unraveling-rlhf-and-its-variants-engineering-insights#147d9a33ecc9806090f3d5c749d31f05
 max_prompt_length: 256
 max_completion_length: 1024
+
+# CPU-specific optimizations
+num_workers: 20  # Adjust based on your total threads 
+ddp_enabled: true
+torch_distributed_backend: "gloo"  # CPU-friendly DDP backend
+torch_num_threads: 20  # Adjust based on your total threads
+torch_intraop_threads: 20  # Explicit intra-op parallelism and Adjust based your total threads
+torch_interop_threads: 2   # Minimal inter-op threads to avoid contention
+pin_memory: false
+non_blocking: false
+prefetch_factor: 4  # Boost data pre-loading efficiency
+torch_use_deterministic_algorithms: false  # Speed over determinism
+torch_use_cpu_affinity: true
 
 # Logging arguments
 logging_strategy: steps
@@ -35,6 +49,8 @@ save_steps: 25
 seed: 42
 
 # Script arguments
+public_maddr: "/ip4/38.101.215.12/tcp/30002" # Biarkan jika memang untuk setup distributed Anda
+host_maddr: "/ip4/0.0.0.0/tcp/38331"       # Biarkan jika memang untuk setup distributed Anda
 max_rounds: 10000
 
 # Model-specific arguments
