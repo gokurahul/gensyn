@@ -18,38 +18,36 @@ DEFAULT_PUB_MULTI_ADDRS=""
 PUB_MULTI_ADDRS=${PUB_MULTI_ADDRS:-$DEFAULT_PUB_MULTI_ADDRS}
 
 # Check if peer multi-address is given else set to default
-DEFAULT_PEER_MULTI_ADDRS="/ip4/38.101.215.13/tcp/30002/p2p/QmQ2gEXoPJg6iMBSUFWGzAabS2VhnzuS782Y637hGjfsRJ"
+DEFAULT_PEER_MULTI_ADDRS="/ip4/38.101.215.13/tcp/30002/p2p/QmQ2gEXoPJg6iMBSUFWGzAabS2VhnzuS782Y637hGjfsRJ" # gensyn coordinator node
 PEER_MULTI_ADDRS=${PEER_MULTI_ADDRS:-$DEFAULT_PEER_MULTI_ADDRS}
 
 # Check if host multi-address is given else set to default
 DEFAULT_HOST_MULTI_ADDRS="/ip4/0.0.0.0/tcp/38331"
 HOST_MULTI_ADDRS=${HOST_MULTI_ADDRS:-$DEFAULT_HOST_MULTI_ADDRS}
 
+# Path to an RSA private key. If this path does not exist, a new key pair will be created.
+# Remove this file if you want a new PeerID.
 DEFAULT_IDENTITY_PATH="$ROOT"/swarm.pem
 IDENTITY_PATH=${IDENTITY_PATH:-$DEFAULT_IDENTITY_PATH}
 
 SMALL_SWARM_CONTRACT="0x69C6e1D608ec64885E7b185d39b04B491a71768C"
 BIG_SWARM_CONTRACT="0x6947c6E196a48B77eFa9331EC1E3e45f3Ee5Fd58"
 
+# Will ignore any visible GPUs if set.
 CPU_ONLY=${CPU_ONLY:-""}
+
+# Set if successfully parsed from modal-login/temp-data/userData.json.
 ORG_ID=${ORG_ID:-""}
 
 GREEN_TEXT="\033[32m"
 BLUE_TEXT="\033[34m"
 RESET_TEXT="\033[0m"
 
-echo_green() {
-    echo -e "$GREEN_TEXT$1$RESET_TEXT"
-}
-
-echo_blue() {
-    echo -e "$BLUE_TEXT$1$RESET_TEXT"
-}
-
 ROOT_DIR="$(cd $(dirname ${BASH_SOURCE[0]}) && pwd)"
 
+# Function to clean up the server process upon exit
 cleanup() {
-    echo_green ">> Shutting down trainer..."
+    echo -e "$GREEN_TEXT>> Shutting down trainer...$RESET_TEXT"
     rm -r $ROOT_DIR/modal-login/temp-data/*.json 2> /dev/null || true
     kill -- -$$ || true
     exit 0
@@ -66,10 +64,7 @@ cat << "EOF"
   / . \ (_| | | | (_) | | | | (_| |      | (_) |/ /| (_) |/ / 
  /_/ \_\__,_|_|_|\___/|_| |_|\__, |       \___//_/  \___//_/  
                               __/ |                           
-                             |___/                            
-
- 🚀 Welcome to the Swarm Trainer-Have a nice day 🚀
-           🧠 Kudos To The Gensyn Team 🧠
+                             |___/                             
 EOF
 
 while true; do
@@ -109,6 +104,8 @@ while true; do
         0.5 | 1.5 | 7 | 32 | 72) PARAM_B=$pc && break ;;
         *)  echo ">>> Please answer in [0.5, 1.5, 7, 32, 72]." ;;
     esac
+
+
 done
 
 if [ "$CONNECT_TO_TESTNET" = true ]; then
@@ -116,69 +113,35 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     cd modal-login
 
     if ! command -v node > /dev/null 2>&1; then
-        echo "Node.js not found. Installing NVM and latest Node.js..."
-        export NVM_DIR="$HOME/.nvm"
-        if [ ! -d "$NVM_DIR" ]; then
-            curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-        fi
-        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-        nvm install node
+        echo "Node.js not found. Installing Node.js..."
+        curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+        sudo apt-get install -y nodejs
     fi
 
     if ! command -v yarn > /dev/null 2>&1; then
-        if grep -qi "ubuntu" /etc/os-release 2> /dev/null || uname -r | grep -qi "microsoft"; then
-            echo "Installing Yarn via apt..."
-            curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
-            echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
-            sudo apt update && sudo apt install -y yarn
-        else
-            npm install -g --silent yarn
-        fi
+        echo "Yarn not found. Installing Yarn..."
+        npm install -g yarn
     fi
+
     yarn install
     yarn dev > /dev/null 2>&1 &
+
     SERVER_PID=$!
+    echo "Started server process: $SERVER_PID"
     sleep 5
 
     if open http://localhost:3000 2> /dev/null || xdg-open http://localhost:3000 2> /dev/null || sensible-browser http://localhost:3000 2> /dev/null; then
-        echo_green ">> Successfully opened http://localhost:3000 in your default browser."
-    else
-        echo "Trying to create a tunnel..."
-        if ! command -v cloudflared &> /dev/null; then
-            echo "Installing cloudflared..."
-            if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-                wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -O cloudflared.deb
-                sudo dpkg -i cloudflared.deb
-                rm cloudflared.deb
-            elif [[ "$OSTYPE" == "darwin"* ]]; then
-                brew install cloudflare/cloudflare/cloudflared
-            fi
-        fi
-        if command -v cloudflared &> /dev/null; then
-            cloudflared tunnel --url http://localhost:3000 &
-            TUNNEL_PID=$!
-            sleep 5
-            echo_green ">> cloudflared tunnel started."
-        else
-            if ! command -v lt &> /dev/null; then
-                npm install -g localtunnel
-            fi
-            if command -v lt &> /dev/null; then
-                lt --port 3000 &
-                LT_PID=$!
-                sleep 5
-                echo_green ">> localtunnel started."
-            fi
-        fi
+        echo -e "$GREEN_TEXT>> Successfully opened http://localhost:3000 in your default browser.$RESET_TEXT"
     fi
 
     cd ..
-    echo_green ">> Waiting for modal userData.json to be created..."
+
+    echo -e "$GREEN_TEXT>> Waiting for modal userData.json to be created...$RESET_TEXT"
     while [ ! -f "modal-login/temp-data/userData.json" ]; do
         sleep 5
     done
     echo "Found userData.json. Proceeding..."
+
     ORG_ID=$(awk 'BEGIN { FS = "\"" } !/^[ \t]*[{}]/ { print $(NF - 1); exit }' modal-login/temp-data/userData.json)
     echo "Your ORG_ID is set to: $ORG_ID"
 
@@ -189,6 +152,7 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
             echo "API key is activated! Proceeding..."
             break
         else
+            echo "Waiting for API key to be activated..."
             sleep 5
         fi
     done
@@ -201,7 +165,7 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     fi
 fi
 
-echo_green ">> Getting requirements..."
+echo -e "$GREEN_TEXT>> Getting requirements...$RESET_TEXT"
 
 pip install --upgrade pip
 if [ -n "$CPU_ONLY" ] || ! command -v nvidia-smi &> /dev/null; then
@@ -215,6 +179,7 @@ else
     case "$PARAM_B" in
         32 | 72) CONFIG_PATH="$ROOT/hivemind_exp/configs/gpu/grpo-qwen-2.5-${PARAM_B}b-bnb-4bit-deepseek-r1.yaml" && break ;;
         0.5 | 1.5 | 7) CONFIG_PATH="$ROOT/hivemind_exp/configs/gpu/grpo-qwen-2.5-${PARAM_B}b-deepseek-r1.yaml" && break ;;
+        *) echo ">>> Please answer in [0.5, 1.5, 7, 32, 72]." ;;
     esac
 
     if [ "$USE_BIG_SWARM" = true ]; then
@@ -224,7 +189,7 @@ else
     fi
 fi
 
-echo_green ">> Done!"
+echo -e "$GREEN_TEXT>> Done!$RESET_TEXT"
 
 HF_TOKEN=${HF_TOKEN:-""}
 if [ -n "${HF_TOKEN}" ]; then
@@ -241,9 +206,9 @@ else
     esac
 fi
 
-echo_green ">> Good luck in the swarm!"
-echo_blue ">> Post about rl-swarm on X/twitter! --> https://tinyurl.com/swarmtweet"
-echo_blue ">> And remember to star the repo on GitHub! --> https://github.com/gensyn-ai/rl-swarm"
+echo -e "$GREEN_TEXT>> Good luck in the swarm!$RESET_TEXT"
+echo -e "$BLUE_TEXT>> Post about rl-swarm on X/twitter! --> https://tinyurl.com/swarmtweet$RESET_TEXT"
+echo -e "$BLUE_TEXT>> And remember to star the repo on GitHub! --> https://github.com/gensyn-ai/rl-swarm$RESET_TEXT"
 
 if [ -n "$ORG_ID" ]; then
     python -m hivemind_exp.gsm8k.train_single_gpu \
