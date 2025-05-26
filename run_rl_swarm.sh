@@ -13,12 +13,15 @@ export CONNECT_TO_TESTNET
 export ORG_ID
 export HF_HUB_DOWNLOAD_TIMEOUT=120  # 2 minutes
 
+# Check if public multi-address is given else set to default
 DEFAULT_PUB_MULTI_ADDRS=""
 PUB_MULTI_ADDRS=${PUB_MULTI_ADDRS:-$DEFAULT_PUB_MULTI_ADDRS}
 
+# Check if peer multi-address is given else set to default
 DEFAULT_PEER_MULTI_ADDRS="/ip4/38.101.215.13/tcp/30002/p2p/QmQ2gEXoPJg6iMBSUFWGzAabS2VhnzuS782Y637hGjfsRJ"
 PEER_MULTI_ADDRS=${PEER_MULTI_ADDRS:-$DEFAULT_PEER_MULTI_ADDRS}
 
+# Check if host multi-address is given else set to default
 DEFAULT_HOST_MULTI_ADDRS="/ip4/0.0.0.0/tcp/38331"
 HOST_MULTI_ADDRS=${HOST_MULTI_ADDRS:-$DEFAULT_HOST_MULTI_ADDRS}
 
@@ -56,75 +59,17 @@ trap cleanup EXIT
 
 echo -e "\033[38;5;224m"
 cat << "EOF"
-🎯💥🚀
+ __   __     _ _                            __ ___    __ ___  
+ \ \ / /    (_) |                          / // _ \  / // _ \ 
+  \ V / __ _ _| | ___  _ __   __ _ ______ / /| (_) |/ /| (_) |
+   > < / _` | | |/ _ \| '_ \ / _` |______| '_ \__, | '_ \__, |
+  / . \ (_| | | | (_) | | | | (_| |      | (_) |/ /| (_) |/ / 
+ /_/ \_\__,_|_|_|\___/|_| |_|\__, |       \___//_/  \___//_/  
+                              __/ |                           
+                             |___/                            
 
-____  ___      .__.__                                    ________________  ________________ 
-\   \/  /____  |__|  |   ____   ____    ____            /  _____/   __   \/  _____/   __   \
- \     /\__  \ |  |  |  /  _ \ /    \  / ___\   ______ /   __  \\____    /   __  \\____    / 
- /     \ / __ \|  |  |_(  <_> )   |  \/ /_/  > /_____/ \  |__\  \  /    /\  |__\  \  /    / 
-/___/\  (____  /__|____/\____/|___|  /\___  /           \_____  / /____/  \_____  / /____/  
-      \_/    \/                    \//_____/                  \/                \/          
-
-🎯💥🚀
+ 🚀 Welcome to the Swarm Trainer 
 EOF
-
-# Install tunnel services if needed
-install_tunnel_services() {
-    # cloudflared installation
-    if ! command -v cloudflared &> /dev/null; then
-        echo_green ">> Installing cloudflared..."
-        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-            curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
-            chmod +x cloudflared
-            sudo mv cloudflared /usr/local/bin/
-        elif [[ "$OSTYPE" == "darwin"* ]]; then
-            brew install cloudflared || echo "brew not found, please install cloudflared manually."
-        else
-            echo "Unsupported OS for cloudflared automatic install."
-        fi
-    fi
-
-    # localtunnel installation
-    if ! command -v lt &> /dev/null; then
-        echo_green ">> Installing localtunnel..."
-        npm install -g localtunnel
-    fi
-
-    # ngrok installation
-    if ! command -v ngrok &> /dev/null; then
-        echo_green ">> Installing ngrok..."
-        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-            curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
-            echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
-            sudo apt update && sudo apt install ngrok
-        elif [[ "$OSTYPE" == "darwin"* ]]; then
-            brew install ngrok/ngrok/ngrok || echo "brew not found, please install ngrok manually."
-        else
-            echo "Unsupported OS for ngrok automatic install."
-        fi
-    fi
-}
-
-# Tunnel setup if swarm.pem exists
-if [[ -f "$IDENTITY_PATH" ]]; then
-    echo_green ">> swarm.pem found. Setting up a tunnel for port 3000..."
-
-    install_tunnel_services
-
-    if command -v cloudflared &> /dev/null; then
-        echo_green ">> Trying Cloudflared tunnel..."
-        cloudflared tunnel --url http://localhost:3000 --no-autoupdate &
-    elif command -v lt &> /dev/null; then
-        echo_green ">> Cloudflared not found. Trying LocalTunnel..."
-        lt --port 3000 &
-    elif command -v ngrok &> /dev/null; then
-        echo_green ">> LocalTunnel not found. Trying ngrok..."
-        ngrok http 3000 &
-    else
-        echo "❌ No tunnel service found (cloudflared, lt, ngrok). Please install one."
-    fi
-    sleep 5
-fi
 
 while true; do
     echo -en $GREEN_TEXT
@@ -132,9 +77,9 @@ while true; do
     echo -en $RESET_TEXT
     yn=${yn:-Y}
     case $yn in
-        [Yy]*) CONNECT_TO_TESTNET=true && break ;;
-        [Nn]*) CONNECT_TO_TESTNET=false && break ;;
-        *) echo ">>> Please answer yes or no." ;;
+        [Yy]*)  CONNECT_TO_TESTNET=true && break ;;
+        [Nn]*)  CONNECT_TO_TESTNET=false && break ;;
+        *)  echo ">>> Please answer yes or no." ;;
     esac
 done
 
@@ -144,18 +89,16 @@ while true; do
     echo -en $RESET_TEXT
     ab=${ab:-A}
     case $ab in
-        [Aa]*) USE_BIG_SWARM=false && break ;;
-        [Bb]*) USE_BIG_SWARM=true && break ;;
-        *) echo ">>> Please answer A or B." ;;
+        [Aa]*)  USE_BIG_SWARM=false && break ;;
+        [Bb]*)  USE_BIG_SWARM=true && break ;;
+        *)  echo ">>> Please answer A or B." ;;
     esac
 done
-
 if [ "$USE_BIG_SWARM" = true ]; then
     SWARM_CONTRACT="$BIG_SWARM_CONTRACT"
 else
     SWARM_CONTRACT="$SMALL_SWARM_CONTRACT"
 fi
-
 while true; do
     echo -en $GREEN_TEXT
     read -p ">> How many parameters (in billions)? [0.5, 1.5, 7, 32, 72] " pc
@@ -163,7 +106,7 @@ while true; do
     pc=${pc:-0.5}
     case $pc in
         0.5 | 1.5 | 7 | 32 | 72) PARAM_B=$pc && break ;;
-        *) echo ">>> Please answer in [0.5, 1.5, 7, 32, 72]." ;;
+        *)  echo ">>> Please answer in [0.5, 1.5, 7, 32, 72]." ;;
     esac
 done
 
@@ -183,19 +126,59 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     fi
 
     if ! command -v yarn > /dev/null 2>&1; then
-        npm install -g --silent yarn
+        if grep -qi "ubuntu" /etc/os-release 2> /dev/null || uname -r | grep -qi "microsoft"; then
+            echo "Installing Yarn via apt..."
+            curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
+            echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
+            sudo apt update && sudo apt install -y yarn
+        else
+            npm install -g --silent yarn
+        fi
     fi
-
     yarn install
     yarn dev > /dev/null 2>&1 &
+    SERVER_PID=$!
+    sleep 5
 
+    if open http://localhost:3000 2> /dev/null || xdg-open http://localhost:3000 2> /dev/null || sensible-browser http://localhost:3000 2> /dev/null; then
+        echo_green ">> Successfully opened http://localhost:3000 in your default browser."
+    else
+        echo "Trying to create a tunnel..."
+        if ! command -v cloudflared &> /dev/null; then
+            echo "Installing cloudflared..."
+            if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+                wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -O cloudflared.deb
+                sudo dpkg -i cloudflared.deb
+                rm cloudflared.deb
+            elif [[ "$OSTYPE" == "darwin"* ]]; then
+                brew install cloudflare/cloudflare/cloudflared
+            fi
+        fi
+        if command -v cloudflared &> /dev/null; then
+            cloudflared tunnel --url http://localhost:3000 &
+            TUNNEL_PID=$!
+            sleep 5
+            echo_green ">> cloudflared tunnel started."
+        else
+            if ! command -v lt &> /dev/null; then
+                npm install -g localtunnel
+            fi
+            if command -v lt &> /dev/null; then
+                lt --port 3000 &
+                LT_PID=$!
+                sleep 5
+                echo_green ">> localtunnel started."
+            fi
+        fi
+    fi
+
+    cd ..
     echo_green ">> Waiting for modal userData.json to be created..."
-    while [ ! -f "temp-data/userData.json" ]; do
+    while [ ! -f "modal-login/temp-data/userData.json" ]; do
         sleep 5
     done
     echo "Found userData.json. Proceeding..."
-
-    ORG_ID=$(awk 'BEGIN { FS = "\"" } !/^[ \t]*[{}]/ { print $(NF - 1); exit }' temp-data/userData.json)
+    ORG_ID=$(awk 'BEGIN { FS = "\"" } !/^[ \t]*[{}]/ { print $(NF - 1); exit }' modal-login/temp-data/userData.json)
     echo "Your ORG_ID is set to: $ORG_ID"
 
     echo "Waiting for API key to become activated..."
@@ -205,7 +188,6 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
             echo "API key is activated! Proceeding..."
             break
         else
-            echo "Waiting for API key to be activated..."
             sleep 5
         fi
     done
@@ -216,7 +198,6 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     else
         sed -i "3s/.*/SMART_CONTRACT_ADDRESS=$SWARM_CONTRACT/" "$ENV_FILE"
     fi
-    cd ..
 fi
 
 echo_green ">> Getting requirements..."
@@ -229,11 +210,17 @@ if [ -n "$CPU_ONLY" ] || ! command -v nvidia-smi &> /dev/null; then
 else
     pip install -r "$ROOT"/requirements-gpu.txt
     pip install flash-attn --no-build-isolation
+
     case "$PARAM_B" in
-        32 | 72) CONFIG_PATH="$ROOT/hivemind_exp/configs/gpu/grpo-qwen-2.5-${PARAM_B}b-bnb-4bit-deepseek-r1.yaml" ;;
-        0.5 | 1.5 | 7) CONFIG_PATH="$ROOT/hivemind_exp/configs/gpu/grpo-qwen-2.5-${PARAM_B}b-deepseek-r1.yaml" ;;
+        32 | 72) CONFIG_PATH="$ROOT/hivemind_exp/configs/gpu/grpo-qwen-2.5-${PARAM_B}b-bnb-4bit-deepseek-r1.yaml" && break ;;
+        0.5 | 1.5 | 7) CONFIG_PATH="$ROOT/hivemind_exp/configs/gpu/grpo-qwen-2.5-${PARAM_B}b-deepseek-r1.yaml" && break ;;
     esac
-    GAME=$([ "$USE_BIG_SWARM" = true ] && echo "dapo" || echo "gsm8k")
+
+    if [ "$USE_BIG_SWARM" = true ]; then
+        GAME="dapo"
+    else
+        GAME="gsm8k"
+    fi
 fi
 
 echo_green ">> Done!"
@@ -248,11 +235,12 @@ else
     yn=${yn:-N}
     case $yn in
         [Yy]*) read -p "Enter your Hugging Face access token: " HUGGINGFACE_ACCESS_TOKEN ;;
-        *) echo ">>> No token provided, skipping upload." && HUGGINGFACE_ACCESS_TOKEN="None" ;;
+        [Nn]*) HUGGINGFACE_ACCESS_TOKEN="None" ;;
+        *) echo ">>> No answer was given, so NO models will be pushed to Hugging Face Hub" && HUGGINGFACE_ACCESS_TOKEN="None" ;;
     esac
 fi
 
-echo_green ">> Good luck in the swarm! 🐝🔥"
+echo_green ">> Good luck in the swarm!"
 echo_blue ">> Post about rl-swarm on X/twitter! --> https://tinyurl.com/swarmtweet"
 echo_blue ">> And remember to star the repo on GitHub! --> https://github.com/gensyn-ai/rl-swarm"
 
