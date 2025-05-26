@@ -92,12 +92,19 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     rm -f modal-login/package-lock.json
 
     cd modal-login
-    yarn install --silent
 
     echo_green ">> Starting login server (local tunnel)..."
-    yarn dev > /dev/null 2>&1 &
+    yarn dev &
     SERVER_PID=$!
-    sleep 3
+    sleep 5
+    if ! ps -p $SERVER_PID > /dev/null; then
+        echo -e "\033[91m❌ Login server failed to start. Check modal-login logs.\033[0m"
+        exit 1
+    fi
+    echo_green ">> Login server is running with PID $SERVER_PID"
+    # Optionally tail last logs for quick debugging
+    tail -n 20 yarn.log || true
+
     cd ..
 
     # Install localtunnel if not installed
@@ -107,18 +114,22 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     fi
 
     echo_green ">> Attempting localtunnel..."
-    LT_TUNNEL_URL=""
-    LT_PID=""
-    # Run localtunnel in background and capture URL
     lt --port 3000 --print-requests > lt.log 2>&1 &
     LT_PID=$!
 
+    echo "Waiting 5 seconds for localtunnel to start..."
+    sleep 5
+    echo "Localtunnel logs:"
+    cat lt.log
+
     # Wait for localtunnel URL to appear in lt.log (max 15 sec)
+    LT_TUNNEL_URL=""
     for i in {1..15}; do
         LT_TUNNEL_URL=$(grep -o 'https://[-a-z0-9]*\.loca.lt' lt.log | head -n1 || true)
         if [ -n "$LT_TUNNEL_URL" ]; then
             break
         fi
+        echo "Waiting for localtunnel URL... ($i/15)"
         sleep 1
     done
 
@@ -154,7 +165,6 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
         fi
     fi
 
-    # --- FIXED ORG_ID retrieval block starts here ---
     echo_green ">> Waiting for modal userData.json to be created..."
     for i in {1..30}; do
         if [ -f "modal-login/temp-data/userData.json" ]; then
@@ -180,7 +190,6 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
         exit 1
     fi
     echo_green ">> ORG_ID detected: $ORG_ID"
-    # --- FIXED ORG_ID retrieval block ends here ---
 
     ENV_FILE="$ROOT/modal-login/.env"
     sed -i "3s/.*/SMART_CONTRACT_ADDRESS=$SWARM_CONTRACT/" "$ENV_FILE"
@@ -189,7 +198,7 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     while true; do
         STATUS=$(curl -s "http://localhost:3000/api/get-api-key-status?orgId=$ORG_ID")
         [[ "$STATUS" == "activated" ]] && break
-        echo "Waiting..."
+        echo "Waiting for API key activation..."
         sleep 4
     done
 fi
