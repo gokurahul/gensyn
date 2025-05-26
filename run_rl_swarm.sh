@@ -29,7 +29,7 @@ function echo_saffron() {
 
 # Cleanup function to kill background jobs on exit
 function cleanup() {
-    echo_green ">> Shutting down trainer..."
+    echo_green ">> Shutting down trainer and modal-login server..."
     kill -- -$$ || true
     exit 0
 }
@@ -88,24 +88,27 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
         npm install -g yarn
     fi
 
-    # Remove package-lock.json to avoid conflicts
-    rm -f modal-login/package-lock.json
-
+    # Clean install to avoid package issues
+    echo_green ">> Cleaning modal-login dependencies and reinstalling..."
     cd modal-login
+    rm -rf node_modules package-lock.json yarn.lock
+    yarn install --silent
 
-    echo_green ">> Starting login server (local tunnel)..."
-    yarn dev &
+    echo_green ">> Starting login server (local tunnel)... Logs will be saved to modal-login.log"
+    # Start yarn dev, redirect output to file for debugging
+    yarn dev > ../modal-login.log 2>&1 &
     SERVER_PID=$!
+    cd ..
+
+    # Wait a bit for server to start
     sleep 5
-    if ! ps -p $SERVER_PID > /dev/null; then
-        echo -e "\033[91m❌ Login server failed to start. Check modal-login logs.\033[0m"
+
+    # Check if modal-login server is still running after 5 seconds
+    if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+        echo_saffron "⚠️  modal-login server crashed immediately. Check modal-login.log for errors."
+        tail -40 modal-login.log
         exit 1
     fi
-    echo_green ">> Login server is running with PID $SERVER_PID"
-    # Optionally tail last logs for quick debugging
-    tail -n 20 yarn.log || true
-
-    cd ..
 
     # Install localtunnel if not installed
     if ! command -v lt > /dev/null; then
@@ -114,22 +117,18 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     fi
 
     echo_green ">> Attempting localtunnel..."
+    LT_TUNNEL_URL=""
+    LT_PID=""
+    # Run localtunnel in background and capture URL
     lt --port 3000 --print-requests > lt.log 2>&1 &
     LT_PID=$!
 
-    echo "Waiting 5 seconds for localtunnel to start..."
-    sleep 5
-    echo "Localtunnel logs:"
-    cat lt.log
-
     # Wait for localtunnel URL to appear in lt.log (max 15 sec)
-    LT_TUNNEL_URL=""
     for i in {1..15}; do
         LT_TUNNEL_URL=$(grep -o 'https://[-a-z0-9]*\.loca.lt' lt.log | head -n1 || true)
         if [ -n "$LT_TUNNEL_URL" ]; then
             break
         fi
-        echo "Waiting for localtunnel URL... ($i/15)"
         sleep 1
     done
 
@@ -165,7 +164,7 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
         fi
     fi
 
-    echo_green ">> Waiting for modal userData.json to be created..."
+    echo_green ">> Waiting for modal userData.json to be created (up to 60 seconds)..."
     for i in {1..30}; do
         if [ -f "modal-login/temp-data/userData.json" ]; then
             break
@@ -175,7 +174,9 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     done
 
     if [ ! -f "modal-login/temp-data/userData.json" ]; then
-        echo -e "\033[91m❌ Failed to retrieve ORG_ID. userData.json not found. Please retry login.\033[0m"
+        echo -e "\033[91m❌ Failed to retrieve ORG_ID. userData.json not found. Please check modal-login logs and retry login.\033[0m"
+        echo "Last 20 lines of modal-login.log:"
+        tail -20 modal-login.log
         exit 1
     fi
 
