@@ -2,15 +2,7 @@
 
 set -euo pipefail
 
-# General env
-ROOT=$PWD
-export HF_HUB_DOWNLOAD_TIMEOUT=120
-DEFAULT_IDENTITY_PATH="$ROOT/swarm.pem"
-IDENTITY_PATH=${IDENTITY_PATH:-$DEFAULT_IDENTITY_PATH}
-
-SMALL_SWARM_CONTRACT="0x69C6e1D608ec64885E7b185d39b04B491a71768C"
-BIG_SWARM_CONTRACT="0x6947c6E196a48B77eFa9331EC1E3e45f3Ee5Fd58"
-
+# Define colors for output
 GREEN="\033[32m"
 BLUE="\033[34m"
 RESET="\033[0m"
@@ -23,6 +15,7 @@ function echo_blue() {
     echo -e "${BLUE}$1${RESET}"
 }
 
+# Cleanup function to handle script termination
 function cleanup() {
     echo_green ">> Shutting down trainer..."
     kill -- -$$ || true
@@ -31,7 +24,7 @@ function cleanup() {
 
 trap cleanup EXIT
 
-# Banner 🚀✨
+# Display banner
 echo -e "\033[38;5:220m"
 cat << "EOF"
  __   __     _ _                            __ ___    __ ___  
@@ -42,28 +35,36 @@ cat << "EOF"
  /_/ \_\__,_|_|_|\___/|_| |_|\__, |       \___//_/  \___//_/  
                               __/ |                           
                              |___/                            
-
-🐝 Welcome to RL-Swarm! Let's swarm-train some models! 🤖🔥
-🙌 Kudos to the amazing Gensyn Team for building this! 💪🎉
+      🐝 Welcome to RL-Swarm! Let's swarm-train some models! 🤖🔥
+      🙌 Kudos to the amazing Gensyn Team for building this! 💪🎉🌟
 EOF
 
-# Prompt user
+# Prompt user for testnet connection
 read -p ">> Connect to the Testnet? [Y/n]: " CONNECT
 CONNECT=${CONNECT:-Y}
 CONNECT_TO_TESTNET=false
 [[ "$CONNECT" =~ ^[Yy]$ ]] && CONNECT_TO_TESTNET=true
 
+# Prompt user for swarm choice
 read -p ">> Join which Swarm? Math (A) or Math Hard (B)? [A/b]: " CHOICE
 CHOICE=${CHOICE:-A}
 USE_BIG_SWARM=false
 [[ "$CHOICE" =~ ^[Bb]$ ]] && USE_BIG_SWARM=true
 
+# Prompt user for parameter size
 read -p ">> How many parameters (in billions)? [0.5, 1.5, 7, 32, 72]: " PARAM_B
 PARAM_B=${PARAM_B:-0.5}
 
+# Set contract addresses
+SMALL_SWARM_CONTRACT="0x69C6e1D608ec64885E7b185d39b04B491a71768C"
+BIG_SWARM_CONTRACT="0x6947c6E196a48B77eFa9331EC1E3e45f3Ee5Fd58"
 SWARM_CONTRACT=$([ "$USE_BIG_SWARM" = true ] && echo "$BIG_SWARM_CONTRACT" || echo "$SMALL_SWARM_CONTRACT")
 
-# Cloudflared logic 🌐
+# Define identity path
+ROOT=$PWD
+DEFAULT_IDENTITY_PATH="$ROOT/swarm.pem"
+IDENTITY_PATH=${IDENTITY_PATH:-$DEFAULT_IDENTITY_PATH}
+
 if [ "$CONNECT_TO_TESTNET" = true ]; then
     echo_green ">> Checking Node.js..."
     if ! command -v node > /dev/null; then
@@ -72,10 +73,14 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
         sudo apt-get install -y nodejs
     fi
 
-    echo_green ">> Installing Yarn and frontend deps..."
+    echo_green ">> Installing Yarn and frontend dependencies..."
     if ! command -v yarn > /dev/null; then
         npm install -g yarn
     fi
+
+    # Remove lock file to avoid warnings
+    rm -f modal-login/package-lock.json
+
     cd modal-login
     yarn install
 
@@ -101,8 +106,19 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
         echo_green ">> Cloudflared is live! Open this in browser:"
         echo_blue "$TUNNEL_URL"
     else
-        echo "⚠️  Cloudflared failed. Falling back to local browser..."
-        xdg-open http://localhost:3000 || open http://localhost:3000 || echo ">> Open http://localhost:3000 manually."
+        echo "⚠️  Cloudflared failed. Trying LocalTunnel..."
+        if ! command -v lt > /dev/null; then
+            npm install -g localtunnel
+        fi
+        lt --port 3000 > localtunnel.log 2>&1 &
+        sleep 5
+        TUNNEL_URL=$(grep -o 'https://[^ ]*\.loca\.lt' localtunnel.log | head -n1)
+        if [ -n "$TUNNEL_URL" ]; then
+            echo_green ">> LocalTunnel is live! Open this in browser:"
+            echo_blue "$TUNNEL_URL"
+        else
+            echo "❌ Failed to start any tunnel. Please open http://localhost:3000 manually."
+        fi
     fi
 
     echo_green ">> Waiting for modal userData.json to be created..."
@@ -125,8 +141,8 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     done
 fi
 
-# Install Python deps
-echo_green ">> Installing Python deps..."
+# Install Python dependencies
+echo_green ">> Installing Python dependencies..."
 pip install --upgrade pip
 
 if [ -n "${CPU_ONLY:-}" ] || ! command -v nvidia-smi > /dev/null; then
@@ -143,7 +159,7 @@ else
     GAME=$([ "$USE_BIG_SWARM" = true ] && echo "dapo" || echo "gsm8k")
 fi
 
-# Hugging Face upload
+# Prompt for Hugging Face token
 read -p ">> Push models to Hugging Face? [y/N]: " PUSH_HF
 if [[ "$PUSH_HF" =~ ^[Yy]$ ]]; then
     read -p ">> Enter HF token: " HF_TOKEN
@@ -151,7 +167,7 @@ else
     HF_TOKEN="None"
 fi
 
-# Final launch
+# Launch training
 echo_green ">> Launching your swarm run... 🐝🔥🤖"
 echo_blue ">> Post your progress: https://tinyurl.com/swarmtweet"
 echo_blue ">> Star the repo: https://github.com/gensyn-ai/rl-swarm ⭐"
