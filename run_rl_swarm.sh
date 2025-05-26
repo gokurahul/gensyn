@@ -3,11 +3,19 @@
 set -euo pipefail
 
 # Define colors for output
-GREEN="\033[38;5;34m"       # Indian Flag Green
-BLUE="\033[38;5;27m"        # Ashoka Blue
-SAFFRON="\033[38;5;208m"    # Saffron Orange
-WHITE="\033[97m"
+PURPLE="\033[38;5;141m"     # Vibrant purple
+CYAN="\033[38;5;51m"        # Bright cyan
+GREEN="\033[38;5;34m"
+BLUE="\033[38;5;27m"
 RESET="\033[0m"
+
+function echo_purple() {
+    echo -e "${PURPLE}$1${RESET}"
+}
+
+function echo_cyan() {
+    echo -e "${CYAN}$1${RESET}"
+}
 
 function echo_green() {
     echo -e "${GREEN}$1${RESET}"
@@ -15,10 +23,6 @@ function echo_green() {
 
 function echo_blue() {
     echo -e "${BLUE}$1${RESET}"
-}
-
-function echo_saffron() {
-    echo -e "${SAFFRON}$1${RESET}"
 }
 
 # Cleanup function to handle script termination
@@ -30,21 +34,19 @@ function cleanup() {
 
 trap cleanup EXIT
 
-# Display banner
+# Display banner with new colors
 clear
-echo -e "${SAFFRON}"
-cat << "EOF"
+echo_purple "
 ____  ___      .__.__                                    ________________  ________________ 
-\   \/  /____  |__|  |   ____   ____    ____            /  _____/   __   \/  _____/   __   \
- \     /\__  \ |  |  |  /  _ \ /    \  / ___\   ______ /   __  \\____    /   __  \\____    /
- /     \ / __ \|  |  |_(  <_> )   |  \/ /_/  > /_____/ \  |__\  \  /    /\  |__\  \  /    / 
-/___/\  (____  /__|____/\____/|___|  /\___  /           \_____  / /____/  \_____  / /____/  
-      \_/    \/                    \//_____/                  \/                \/          
-EOF
+\\   \\/  /____  |__|  |   ____   ____    ____            /  _____/   __   \\/  _____/   __   \\
+ \\     /\\__  \\ |  |  |  /  _ \\ /    \\  / ___\\   ______ /   __  \\\\____    /   __  \\\\____    /
+ /     \\ / __ \\|  |  |_(  <_> )   |  \\/ /_/  > /_____/ \\  |__\\  \\  /    /\\  |__\\  \\  /    / 
+/___/\\  (____  /__|____/\\____/|___|  /\\___  /           \\_____  / /____/  \\_____  / /____/  
+      \\_/    \\/                    \\//_____/                  \\/                \\/          
+"
 
-# Tagline and kudos with custom colors
-echo -e "${BLUE}      🐝 Welcome to RL-Swarm! Let's swarm-train some models! 🤖🔥${RESET}"
-echo -e "${GREEN}      🙌 Kudos to the amazing Gensyn Team for building this! 💪🎉${RESET}"
+echo_cyan "      🐝 Welcome to RL-Swarm! Let's swarm-train some models! 🤖🔥"
+echo_green "      🙌 Kudos to the amazing Gensyn Team for building this! 💪🎉"
 
 # Prompt user for testnet connection
 read -p ">> Connect to the Testnet? [Y/n]: " CONNECT
@@ -91,31 +93,58 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     cd modal-login
     yarn install
 
-    echo_green ">> Starting login server (local tunnel)..."
+    echo_green ">> Starting login server locally on port 3000..."
     yarn dev > /dev/null 2>&1 &
     SERVER_PID=$!
     sleep 3
-    cd ..
 
-    echo_green ">> Attempting cloudflared tunnel (Cloudflare tunnel)..."
-    if ! command -v cloudflared &> /dev/null; then
-        echo "Installing cloudflared..."
-        wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -O cloudflared.deb
-        sudo dpkg -i cloudflared.deb
-        rm cloudflared.deb
-    fi
-
-    cloudflared tunnel --url http://localhost:3000 > cloudflared.log 2>&1 &
-    sleep 5
-
-    TUNNEL_URL=$(grep -o 'https://[^ ]*\.trycloudflare.com' cloudflared.log | head -n1)
-    if [ -n "$TUNNEL_URL" ]; then
-        echo_green ">> Cloudflared is live! Open this in browser:"
-        echo_blue "$TUNNEL_URL"
+    # Try to start localtunnel if installed
+    LT_TUNNEL_URL=""
+    if command -v lt > /dev/null; then
+        echo_green ">> Attempting to create localtunnel (localtunnel.me)..."
+        lt --port 3000 --print-requests > lt.log 2>&1 &
+        LT_PID=$!
+        # Wait a few seconds to get URL
+        sleep 5
+        LT_TUNNEL_URL=$(grep -o 'https://[a-z0-9-]*\.loca.lt' lt.log | head -n1 || true)
+        if [ -n "$LT_TUNNEL_URL" ]; then
+            echo_green ">> Localtunnel is live! Open this in your browser:"
+            echo_blue "$LT_TUNNEL_URL"
+        else
+            echo "⚠️  Localtunnel failed to get URL, killing localtunnel process."
+            kill $LT_PID || true
+        fi
     else
-        echo "⚠️  Cloudflared failed. Falling back to local browser..."
-        xdg-open http://localhost:3000 || open http://localhost:3000 || echo ">> Open http://localhost:3000 manually."
+        echo "⚠️  Localtunnel CLI ('lt') not found, skipping localtunnel."
     fi
+
+    # If localtunnel didn't start, fallback to cloudflared
+    if [ -z "$LT_TUNNEL_URL" ]; then
+        if command -v cloudflared > /dev/null; then
+            echo_green ">> Attempting to create Cloudflare tunnel..."
+            cloudflared tunnel --url http://localhost:3000 > cloudflared.log 2>&1 &
+            CLOUDFLARED_PID=$!
+            sleep 5
+            TUNNEL_URL=$(grep -o 'https://[^ ]*\.trycloudflare.com' cloudflared.log | head -n1 || true)
+            if [ -n "$TUNNEL_URL" ]; then
+                echo_green ">> Cloudflared tunnel is live! Open this in browser:"
+                echo_blue "$TUNNEL_URL"
+            else
+                echo "⚠️  Cloudflared failed to get URL, killing cloudflared process."
+                kill $CLOUDFLARED_PID || true
+            fi
+        else
+            echo "⚠️  Cloudflared not installed, skipping cloudflare tunnel."
+        fi
+    fi
+
+    # If neither localtunnel nor cloudflared worked, fallback to local access
+    if [ -z "$LT_TUNNEL_URL" ] && [ -z "${TUNNEL_URL:-}" ]; then
+        echo_green ">> No tunnels available."
+        echo_blue ">> Please open your browser and visit: http://localhost:3000"
+    fi
+
+    cd ..
 
     echo_green ">> Waiting for modal userData.json to be created..."
     for i in {1..30}; do
