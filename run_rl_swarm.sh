@@ -5,6 +5,7 @@ set -euo pipefail
 # Define colors for output
 GREEN="\033[32m"
 BLUE="\033[34m"
+PINK="\033[95m"
 RESET="\033[0m"
 
 function echo_green() {
@@ -24,31 +25,22 @@ function cleanup() {
 
 trap cleanup EXIT
 
-# Display banner with Indian flag colors without gaps
-echo -e "\033[38;5;208m"  # Saffron color
+# Display banner in pink
+echo -e "${PINK}"
 cat << "EOF"
  __   __     _ _                            __ ___    __ ___  
  \ \ / /    (_) |                          / // _ \  / // _ \ 
   \ V / __ _ _| | ___  _ __   __ _ ______ / /| (_) |/ /| (_) |
-EOF
-
-echo -e "\033[97m"  # White color
-cat << "EOF"
    > < / _` | | |/ _ \| '_ \ / _` |______| '_ \__, | '_ \__, |
   / . \ (_| | | | (_) | | | | (_| |      | (_) |/ /| (_) |/ / 
-EOF
-
-echo -e "\033[38;5;34m"  # Green color
-cat << "EOF"
  /_/ \_\__,_|_|_|\___/|_| |_|\__, |       \___//_/  \___//_/  
                               __/ |                           
                              |___/                            
 EOF
 
-echo -e "\033[97m"  # White color for tagline and kudos
+echo -e "\033[97m"  # Pink color for tagline and kudos
 echo "      🐝 Welcome to RL-Swarm! Let's swarm-train some models! 🤖🔥"
 echo "      🙌 Kudos to the amazing Gensyn Team for building this! 💪🎉"
-echo -e "\033[0m"  # Reset colors
 
 # Prompt user for testnet connection
 read -p ">> Connect to the Testnet? [Y/n]: " CONNECT
