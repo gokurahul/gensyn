@@ -25,7 +25,8 @@ PEER_MULTI_ADDRS=${PEER_MULTI_ADDRS:-$DEFAULT_PEER_MULTI_ADDRS}
 DEFAULT_HOST_MULTI_ADDRS="/ip4/0.0.0.0/tcp/38331"
 HOST_MULTI_ADDRS=${HOST_MULTI_ADDRS:-$DEFAULT_HOST_MULTI_ADDRS}
 
-DEFAULT_IDENTITY_PATH="$ROOT"/swarm.pem
+# Path to RSA private key (creates new if not found)
+DEFAULT_IDENTITY_PATH="$ROOT/swarm.pem"
 IDENTITY_PATH=${IDENTITY_PATH:-$DEFAULT_IDENTITY_PATH}
 
 SMALL_SWARM_CONTRACT="0x69C6e1D608ec64885E7b185d39b04B491a71768C"
@@ -34,189 +35,126 @@ BIG_SWARM_CONTRACT="0x6947c6E196a48B77eFa9331EC1E3e45f3Ee5Fd58"
 CPU_ONLY=${CPU_ONLY:-""}
 ORG_ID=${ORG_ID:-""}
 
-PINK_TEXT="\033[38;5;213m"
-CYAN_TEXT="\033[36m"
-GREEN_TEXT="\033[32m"
-BLUE_TEXT="\033[34m"
-RESET_TEXT="\033[0m"
+PINK="\033[38;5;213m"
+GREEN="\033[32m"
+CYAN="\033[36m"
+RESET="\033[0m"
 
-print_banner() {
-  echo -e "$PINK_TEXT"
-  cat << "EOF"
+echo_pink() {
+  echo -e "$PINK$1$RESET"
+}
+
+echo_green() {
+  echo -e "$GREEN$1$RESET"
+}
+
+echo_cyan() {
+  echo -e "$CYAN$1$RESET"
+}
+
+trap 'echo_green "\n>> Cleaning up..."; kill -- -$$ || true' EXIT
+
+clear
+echo_pink "
  ____  ___      .__.__                                    ________________  ________________ 
-\   \/  /____  |__|  |   ____   ____    ____            /  _____/   __   \/  _____/   __   \
- \     /\__  \ |  |  |  /  _ \ /    \  / ___\   ______ /   __  \\____    /   __  \\____    /
- /     \ / __ \|  |  |_(  <_> )   |  \/ /_/  > /_____/ \  |__\  \  /    /\  |__\  \  /    / 
-/___/\  (____  /__|____/\____/|___|  /\___  /           \_____  / /____/  \_____  / /____/  
-      \_/    \/                    \//_____/                  \/                \/          
-EOF
-  echo -e "$CYAN_TEXT      🐝 Welcome to RL-Swarm! Let's swarm-train some models! 🤖🔥"
-  echo -e "$GREEN_TEXT      🙌 Kudos to the amazing Gensyn Team for building this! 💪🎉$RESET_TEXT"
-}
+\\   \\/  /____  |__|  |   ____   ____    ____            /  _____/   __   \\/  _____/   __   \\
+ \\     /\\__  \\ |  |  |  /  _ \\ /    \\  / ___\\   ______ /   __  \\\\____    /   __  \\\\____    /
+ /     \\ / __ \\|  |  |_(  <_> )   |  \\/ /_/  > /_____/ \\  |__\\  \\  /    /\\  |__\\  \\  /    / 
+/___/\\  (____  /__|____/\\____/|___|  /\\___  /           \\_____  / /____/  \\_____  / /____/  
+      \\_/    \/                    \\/_____/                  \\/                \\/           
+"
 
-print_banner
+echo_cyan "      🐝 Welcome to RL-Swarm! Let's swarm-train some models! 🤖🔥"
+echo_green "      👋 Kudos to the amazing Gensyn Team for building this! 💪🎉"
 
-ROOT_DIR="$(cd $(dirname ${BASH_SOURCE[0]}) && pwd)"
-
-cleanup() {
-    echo -e "$GREEN_TEXT>> Shutting down trainer...$RESET_TEXT"
-    rm -r $ROOT_DIR/modal-login/temp-data/*.json 2> /dev/null || true
-    kill -- -$$ || true
-    exit 0
-}
-
-trap cleanup EXIT
-
-while true; do
-    echo -en $GREEN_TEXT
-    read -p ">> Would you like to connect to the Testnet? [Y/n] " yn
-    echo -en $RESET_TEXT
-    yn=${yn:-Y}
-    case $yn in
-        [Yy]*)  CONNECT_TO_TESTNET=true && break ;;
-        [Nn]*)  CONNECT_TO_TESTNET=false && break ;;
-        *)  echo ">>> Please answer yes or no." ;;
-    esac
-done
-
-while true; do
-    echo -en $GREEN_TEXT
-    read -p ">> Which swarm would you like to join (Math (A) or Math Hard (B))? [A/b] " ab
-    echo -en $RESET_TEXT
-    ab=${ab:-A}
-    case $ab in
-        [Aa]*)  USE_BIG_SWARM=false && break ;;
-        [Bb]*)  USE_BIG_SWARM=true && break ;;
-        *)  echo ">>> Please answer A or B." ;;
-    esac
-done
-if [ "$USE_BIG_SWARM" = true ]; then
-    SWARM_CONTRACT="$BIG_SWARM_CONTRACT"
-else
-    SWARM_CONTRACT="$SMALL_SWARM_CONTRACT"
-fi
-
-while true; do
-    echo -en $GREEN_TEXT
-    read -p ">> How many parameters (in billions)? [0.5, 1.5, 7, 32, 72] " pc
-    echo -en $RESET_TEXT
-    pc=${pc:-0.5}
-    case $pc in
-        0.5 | 1.5 | 7 | 32 | 72) PARAM_B=$pc && break ;;
-        *)  echo ">>> Please answer in [0.5, 1.5, 7, 32, 72]." ;;
-    esac
-done
+CONNECT_TO_TESTNET=true
+USE_BIG_SWARM=false
+PARAM_B=0.5
+SWARM_CONTRACT="$SMALL_SWARM_CONTRACT"
+GAME="gsm8k"
 
 if [ "$CONNECT_TO_TESTNET" = true ]; then
-    echo "Please login to create an Ethereum Server Wallet"
-    cd modal-login
+  echo_green ">> Setting up modal-login silently..."
+  cd modal-login
 
-    if ! command -v node > /dev/null 2>&1; then
-        echo "Node.js not found. Installing NVM and latest Node.js..."
-        export NVM_DIR="$HOME/.nvm"
-        if [ ! -d "$NVM_DIR" ]; then
-            curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-        fi
-        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-        nvm install node
+  if ! command -v node > /dev/null; then
+    echo_green ">> Installing Node.js (via NVM)..."
+    export NVM_DIR="$HOME/.nvm"
+    if [ ! -d "$NVM_DIR" ]; then
+      curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
     fi
+    source "$NVM_DIR/nvm.sh"
+    nvm install node
+  fi
 
-    if ! command -v yarn > /dev/null 2>&1; then
-        npm install -g --silent yarn
+  if ! command -v yarn > /dev/null; then
+    npm install -g yarn > /dev/null 2>&1
+  fi
+
+  yarn install > /dev/null 2>&1
+  yarn dev > /dev/null 2>&1 &
+  SERVER_PID=$!
+  echo_green ">> Modal login server started in background. PID: $SERVER_PID"
+  echo "\n📝 Please open http://localhost:3000 manually in your browser to complete the login."
+
+  cd ..
+  echo_green ">> Waiting for userData.json to appear..."
+  for i in {1..60}; do
+    if [ -f modal-login/temp-data/userData.json ]; then
+      echo_green ">> Found userData.json"
+      break
     fi
+    sleep 2
+  done
 
-    yarn install
-    yarn dev > /dev/null 2>&1 &
-    SERVER_PID=$!
-    sleep 5
+  ORG_ID=$(awk 'BEGIN { FS = "\"" } !/^[ \t]*[{}]/ { print $(NF - 1); exit }' modal-login/temp-data/userData.json)
+  echo_green ">> ORG_ID = $ORG_ID"
 
-    if open http://localhost:3000 2> /dev/null; then
-        echo -e "$GREEN_TEXT>> Opened http://localhost:3000 in your browser$RESET_TEXT"
-    else
-        echo ">> Please open http://localhost:3000 manually"
+  echo_green ">> Waiting for API key activation..."
+  while true; do
+    STATUS=$(curl -s "http://localhost:3000/api/get-api-key-status?orgId=$ORG_ID")
+    if [[ "$STATUS" == "activated" ]]; then
+      echo_green ">> API key activated!"
+      break
     fi
+    sleep 3
+  done
 
-    cd ..
-    echo -e "$GREEN_TEXT>> Waiting for modal userData.json...$RESET_TEXT"
-    for i in {1..30}; do
-        [ -f "modal-login/temp-data/userData.json" ] && break
-        sleep 5
-    done
-
-    if [ ! -f "modal-login/temp-data/userData.json" ]; then
-        echo "Timeout waiting for userData.json. Exiting."
-        exit 1
-    fi
-
-    ORG_ID=$(awk 'BEGIN { FS = "\"" } !/^[ \t]*[{}]/ { print $(NF - 1); exit }' modal-login/temp-data/userData.json)
-    echo "Your ORG_ID is set to: $ORG_ID"
-
-    while true; do
-        STATUS=$(curl -s "http://localhost:3000/api/get-api-key-status?orgId=$ORG_ID")
-        [ "$STATUS" == "activated" ] && break
-        echo "Waiting for API key to be activated..."
-        sleep 5
-    done
-
-    ENV_FILE="$ROOT"/modal-login/.env
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' "3s/.*/SMART_CONTRACT_ADDRESS=$SWARM_CONTRACT/" "$ENV_FILE"
-    else
-        sed -i "3s/.*/SMART_CONTRACT_ADDRESS=$SWARM_CONTRACT/" "$ENV_FILE"
-    fi
+  ENV_FILE="$ROOT/modal-login/.env"
+  sed -i "3s/.*/SMART_CONTRACT_ADDRESS=$SWARM_CONTRACT/" "$ENV_FILE"
 fi
 
-echo -e "$GREEN_TEXT>> Installing Python dependencies...$RESET_TEXT"
-
-pip install --upgrade pip
+# Install Python requirements
+pip install --upgrade pip > /dev/null
 if [ -n "$CPU_ONLY" ] || ! command -v nvidia-smi &> /dev/null; then
-    pip install -r "$ROOT"/requirements-cpu.txt
-    CONFIG_PATH="$ROOT/hivemind_exp/configs/mac/grpo-qwen-2.5-0.5b-deepseek-r1.yaml"
-    GAME="gsm8k"
+  pip install -r "$ROOT/requirements-cpu.txt" > /dev/null
+  CONFIG_PATH="$ROOT/hivemind_exp/configs/mac/grpo-qwen-2.5-0.5b-deepseek-r1.yaml"
 else
-    pip install -r "$ROOT"/requirements-gpu.txt
-    pip install flash-attn --no-build-isolation
-
-    case "$PARAM_B" in
-        32 | 72) CONFIG_PATH="$ROOT/hivemind_exp/configs/gpu/grpo-qwen-2.5-${PARAM_B}b-bnb-4bit-deepseek-r1.yaml" ;;
-        0.5 | 1.5 | 7) CONFIG_PATH="$ROOT/hivemind_exp/configs/gpu/grpo-qwen-2.5-${PARAM_B}b-deepseek-r1.yaml" ;;
-    esac
-
-    GAME="$([ "$USE_BIG_SWARM" = true ] && echo "dapo" || echo "gsm8k")"
+  pip install -r "$ROOT/requirements-gpu.txt" > /dev/null
+  pip install flash-attn --no-build-isolation > /dev/null
+  CONFIG_PATH="$ROOT/hivemind_exp/configs/gpu/grpo-qwen-2.5-${PARAM_B}b-deepseek-r1.yaml"
 fi
 
-HF_TOKEN=${HF_TOKEN:-""}
-if [ -n "$HF_TOKEN" ]; then
-    HUGGINGFACE_ACCESS_TOKEN=${HF_TOKEN}
-else
-    echo -en $GREEN_TEXT
-    read -p ">> Would you like to push models to Hugging Face? [y/N] " yn
-    echo -en $RESET_TEXT
-    yn=${yn:-N}
-    case $yn in
-        [Yy]*) read -p "Enter your Hugging Face access token: " HUGGINGFACE_ACCESS_TOKEN ;;
-        *) HUGGINGFACE_ACCESS_TOKEN="None" ;;
-    esac
-fi
+HUGGINGFACE_ACCESS_TOKEN="None"
+echo_green ">> Launching training..."
 
 if [ -n "$ORG_ID" ]; then
-    python -m hivemind_exp.gsm8k.train_single_gpu \
-        --hf_token "$HUGGINGFACE_ACCESS_TOKEN" \
-        --identity_path "$IDENTITY_PATH" \
-        --modal_org_id "$ORG_ID" \
-        --contract_address "$SWARM_CONTRACT" \
-        --config "$CONFIG_PATH" \
-        --game "$GAME"
+  python -m hivemind_exp.gsm8k.train_single_gpu \
+    --hf_token "$HUGGINGFACE_ACCESS_TOKEN" \
+    --identity_path "$IDENTITY_PATH" \
+    --modal_org_id "$ORG_ID" \
+    --contract_address "$SWARM_CONTRACT" \
+    --config "$CONFIG_PATH" \
+    --game "$GAME"
 else
-    python -m hivemind_exp.gsm8k.train_single_gpu \
-        --hf_token "$HUGGINGFACE_ACCESS_TOKEN" \
-        --identity_path "$IDENTITY_PATH" \
-        --public_maddr "$PUB_MULTI_ADDRS" \
-        --initial_peers "$PEER_MULTI_ADDRS" \
-        --host_maddr "$HOST_MULTI_ADDRS" \
-        --config "$CONFIG_PATH" \
-        --game "$GAME"
+  python -m hivemind_exp.gsm8k.train_single_gpu \
+    --hf_token "$HUGGINGFACE_ACCESS_TOKEN" \
+    --identity_path "$IDENTITY_PATH" \
+    --public_maddr "$PUB_MULTI_ADDRS" \
+    --initial_peers "$PEER_MULTI_ADDRS" \
+    --host_maddr "$HOST_MULTI_ADDRS" \
+    --config "$CONFIG_PATH" \
+    --game "$GAME"
 fi
 
 wait # Keep script running until Ctrl+C
