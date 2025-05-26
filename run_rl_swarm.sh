@@ -68,7 +68,8 @@ cat << "EOF"
                               __/ |                           
                              |___/                            
 
- 🚀 Welcome to the Swarm Trainer 
+ 🚀 Welcome to the Swarm Trainer-Have a nice day 🚀
+           🧠 Kudos To The Gensyn Team 🧠
 EOF
 
 while true; do
