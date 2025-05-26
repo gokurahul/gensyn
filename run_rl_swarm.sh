@@ -154,25 +154,33 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
         fi
     fi
 
+    # --- FIXED ORG_ID retrieval block starts here ---
     echo_green ">> Waiting for modal userData.json to be created..."
     for i in {1..30}; do
         if [ -f "modal-login/temp-data/userData.json" ]; then
             break
         fi
+        echo "Waiting for userData.json... ($i/30)"
         sleep 2
     done
 
     if [ ! -f "modal-login/temp-data/userData.json" ]; then
-        echo -e "\033[91m❌ Failed to retrieve ORG_ID. Please retry login.\033[0m"
+        echo -e "\033[91m❌ Failed to retrieve ORG_ID. userData.json not found. Please retry login.\033[0m"
         exit 1
     fi
 
-    ORG_ID=$(jq -r '.orgId' modal-login/temp-data/userData.json)
-    if [ "$ORG_ID" = "null" ]; then
-        echo -e "\033[91m❌ ORG_ID is null. Login failed.\033[0m"
+    if ! command -v jq > /dev/null; then
+        echo -e "\033[91m❌ jq is required but not installed. Please install jq.\033[0m"
+        exit 1
+    fi
+
+    ORG_ID=$(jq -r '.orgId // empty' modal-login/temp-data/userData.json)
+    if [ -z "$ORG_ID" ] || [ "$ORG_ID" = "null" ]; then
+        echo -e "\033[91m❌ ORG_ID is missing or null in userData.json. Login failed.\033[0m"
         exit 1
     fi
     echo_green ">> ORG_ID detected: $ORG_ID"
+    # --- FIXED ORG_ID retrieval block ends here ---
 
     ENV_FILE="$ROOT/modal-login/.env"
     sed -i "3s/.*/SMART_CONTRACT_ADDRESS=$SWARM_CONTRACT/" "$ENV_FILE"
