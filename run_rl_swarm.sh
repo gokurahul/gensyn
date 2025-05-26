@@ -24,20 +24,31 @@ function cleanup() {
 
 trap cleanup EXIT
 
-# Display banner
-echo -e "\033[38;5:220m"
+# Display banner with Indian flag colors
+echo -e "\033[38;5;208m"  # Saffron color
 cat << "EOF"
  __   __     _ _                            __ ___    __ ___  
  \ \ / /    (_) |                          / // _ \  / // _ \ 
   \ V / __ _ _| | ___  _ __   __ _ ______ / /| (_) |/ /| (_) |
+EOF
+
+echo -e "\033[97m"  # White color
+cat << "EOF"
    > < / _` | | |/ _ \| '_ \ / _` |______| '_ \__, | '_ \__, |
   / . \ (_| | | | (_) | | | | (_| |      | (_) |/ /| (_) |/ / 
+EOF
+
+echo -e "\033[38;5;34m"  # Green color
+cat << "EOF"
  /_/ \_\__,_|_|_|\___/|_| |_|\__, |       \___//_/  \___//_/  
                               __/ |                           
                              |___/                            
-      🐝 Welcome to RL-Swarm! Let's swarm-train some models! 🤖🔥
-      🙌 Kudos to the amazing Gensyn Team for building this! 💪🎉🌟
 EOF
+
+echo -e "\033[97m"  # White color for the tagline and kudos line
+echo "      🐝 Welcome to RL-Swarm! Let's swarm-train some models! 🤖🔥"
+echo "      🙌 Kudos to the amazing Gensyn Team for building this! 💪🎉"
+echo -e "\033[0m"  # Reset colors
 
 # Prompt user for testnet connection
 read -p ">> Connect to the Testnet? [Y/n]: " CONNECT
@@ -78,7 +89,7 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
         npm install -g yarn
     fi
 
-    # Remove lock file to avoid warnings
+    # Remove package-lock.json to avoid conflicts
     rm -f modal-login/package-lock.json
 
     cd modal-login
@@ -106,19 +117,8 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
         echo_green ">> Cloudflared is live! Open this in browser:"
         echo_blue "$TUNNEL_URL"
     else
-        echo "⚠️  Cloudflared failed. Trying LocalTunnel..."
-        if ! command -v lt > /dev/null; then
-            npm install -g localtunnel
-        fi
-        lt --port 3000 > localtunnel.log 2>&1 &
-        sleep 5
-        TUNNEL_URL=$(grep -o 'https://[^ ]*\.loca\.lt' localtunnel.log | head -n1)
-        if [ -n "$TUNNEL_URL" ]; then
-            echo_green ">> LocalTunnel is live! Open this in browser:"
-            echo_blue "$TUNNEL_URL"
-        else
-            echo "❌ Failed to start any tunnel. Please open http://localhost:3000 manually."
-        fi
+        echo "⚠️  Cloudflared failed. Falling back to local browser..."
+        xdg-open http://localhost:3000 || open http://localhost:3000 || echo ">> Open http://localhost:3000 manually."
     fi
 
     echo_green ">> Waiting for modal userData.json to be created..."
