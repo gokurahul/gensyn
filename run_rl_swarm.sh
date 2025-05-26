@@ -2,74 +2,75 @@
 
 set -euo pipefail
 
-# Define colors for output
-PURPLE="\033[38;5;141m"     # Vibrant purple
-CYAN="\033[38;5;51m"        # Bright cyan
+# Define colors for output (magenta and cyan for banner + neat colors)
+MAGENTA="\033[38;5;201m"
+CYAN="\033[38;5;45m"
 GREEN="\033[38;5;34m"
 BLUE="\033[38;5;27m"
+SAFFRON="\033[38;5;208m"
+WHITE="\033[97m"
 RESET="\033[0m"
 
-function echo_purple() {
-    echo -e "${PURPLE}$1${RESET}"
+function echo_magenta() {
+    echo -e "${MAGENTA}$1${RESET}"
 }
-
 function echo_cyan() {
     echo -e "${CYAN}$1${RESET}"
 }
-
 function echo_green() {
     echo -e "${GREEN}$1${RESET}"
 }
-
 function echo_blue() {
     echo -e "${BLUE}$1${RESET}"
 }
+function echo_saffron() {
+    echo -e "${SAFFRON}$1${RESET}"
+}
 
-# Cleanup function to handle script termination
+# Cleanup function to kill background jobs on exit
 function cleanup() {
     echo_green ">> Shutting down trainer..."
     kill -- -$$ || true
     exit 0
 }
-
 trap cleanup EXIT
 
-# Display banner with new colors
+# Clear and print banner
 clear
-echo_purple "
+echo_magenta "
 ____  ___      .__.__                                    ________________  ________________ 
 \\   \\/  /____  |__|  |   ____   ____    ____            /  _____/   __   \\/  _____/   __   \\
  \\     /\\__  \\ |  |  |  /  _ \\ /    \\  / ___\\   ______ /   __  \\\\____    /   __  \\\\____    /
  /     \\ / __ \\|  |  |_(  <_> )   |  \\/ /_/  > /_____/ \\  |__\\  \\  /    /\\  |__\\  \\  /    / 
 /___/\\  (____  /__|____/\\____/|___|  /\\___  /           \\_____  / /____/  \\_____  / /____/  
-      \\_/    \\/                    \\//_____/                  \\/                \\/          
+      \\_/    \\/                    \\//_____/                  \\/                \\/           
 "
 
 echo_cyan "      🐝 Welcome to RL-Swarm! Let's swarm-train some models! 🤖🔥"
 echo_green "      🙌 Kudos to the amazing Gensyn Team for building this! 💪🎉"
 
 # Prompt user for testnet connection
-read -p ">> Connect to the Testnet? [Y/n]: " CONNECT
+read -rp ">> Connect to the Testnet? [Y/n]: " CONNECT
 CONNECT=${CONNECT:-Y}
 CONNECT_TO_TESTNET=false
 [[ "$CONNECT" =~ ^[Yy]$ ]] && CONNECT_TO_TESTNET=true
 
 # Prompt user for swarm choice
-read -p ">> Join which Swarm? Math (A) or Math Hard (B)? [A/b]: " CHOICE
+read -rp ">> Join which Swarm? Math (A) or Math Hard (B)? [A/b]: " CHOICE
 CHOICE=${CHOICE:-A}
 USE_BIG_SWARM=false
 [[ "$CHOICE" =~ ^[Bb]$ ]] && USE_BIG_SWARM=true
 
 # Prompt user for parameter size
-read -p ">> How many parameters (in billions)? [0.5, 1.5, 7, 32, 72]: " PARAM_B
+read -rp ">> How many parameters (in billions)? [0.5, 1.5, 7, 32, 72]: " PARAM_B
 PARAM_B=${PARAM_B:-0.5}
 
-# Set contract addresses
+# Contract addresses
 SMALL_SWARM_CONTRACT="0x69C6e1D608ec64885E7b185d39b04B491a71768C"
 BIG_SWARM_CONTRACT="0x6947c6E196a48B77eFa9331EC1E3e45f3Ee5Fd58"
 SWARM_CONTRACT=$([ "$USE_BIG_SWARM" = true ] && echo "$BIG_SWARM_CONTRACT" || echo "$SMALL_SWARM_CONTRACT")
 
-# Define identity path
+# Identity path
 ROOT=$PWD
 DEFAULT_IDENTITY_PATH="$ROOT/swarm.pem"
 IDENTITY_PATH=${IDENTITY_PATH:-$DEFAULT_IDENTITY_PATH}
@@ -91,60 +92,67 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     rm -f modal-login/package-lock.json
 
     cd modal-login
-    yarn install
+    yarn install --silent
 
-    echo_green ">> Starting login server locally on port 3000..."
+    echo_green ">> Starting login server (local tunnel)..."
     yarn dev > /dev/null 2>&1 &
     SERVER_PID=$!
     sleep 3
-
-    # Try to start localtunnel if installed
-    LT_TUNNEL_URL=""
-    if command -v lt > /dev/null; then
-        echo_green ">> Attempting to create localtunnel (localtunnel.me)..."
-        lt --port 3000 --print-requests > lt.log 2>&1 &
-        LT_PID=$!
-        # Wait a few seconds to get URL
-        sleep 5
-        LT_TUNNEL_URL=$(grep -o 'https://[a-z0-9-]*\.loca.lt' lt.log | head -n1 || true)
-        if [ -n "$LT_TUNNEL_URL" ]; then
-            echo_green ">> Localtunnel is live! Open this in your browser:"
-            echo_blue "$LT_TUNNEL_URL"
-        else
-            echo "⚠️  Localtunnel failed to get URL, killing localtunnel process."
-            kill $LT_PID || true
-        fi
-    else
-        echo "⚠️  Localtunnel CLI ('lt') not found, skipping localtunnel."
-    fi
-
-    # If localtunnel didn't start, fallback to cloudflared
-    if [ -z "$LT_TUNNEL_URL" ]; then
-        if command -v cloudflared > /dev/null; then
-            echo_green ">> Attempting to create Cloudflare tunnel..."
-            cloudflared tunnel --url http://localhost:3000 > cloudflared.log 2>&1 &
-            CLOUDFLARED_PID=$!
-            sleep 5
-            TUNNEL_URL=$(grep -o 'https://[^ ]*\.trycloudflare.com' cloudflared.log | head -n1 || true)
-            if [ -n "$TUNNEL_URL" ]; then
-                echo_green ">> Cloudflared tunnel is live! Open this in browser:"
-                echo_blue "$TUNNEL_URL"
-            else
-                echo "⚠️  Cloudflared failed to get URL, killing cloudflared process."
-                kill $CLOUDFLARED_PID || true
-            fi
-        else
-            echo "⚠️  Cloudflared not installed, skipping cloudflare tunnel."
-        fi
-    fi
-
-    # If neither localtunnel nor cloudflared worked, fallback to local access
-    if [ -z "$LT_TUNNEL_URL" ] && [ -z "${TUNNEL_URL:-}" ]; then
-        echo_green ">> No tunnels available."
-        echo_blue ">> Please open your browser and visit: http://localhost:3000"
-    fi
-
     cd ..
+
+    # Install localtunnel if not installed
+    if ! command -v lt > /dev/null; then
+        echo_green ">> Installing localtunnel CLI..."
+        npm install -g localtunnel
+    fi
+
+    echo_green ">> Attempting localtunnel..."
+    LT_TUNNEL_URL=""
+    LT_PID=""
+    # Run localtunnel in background and capture URL
+    lt --port 3000 --print-requests > lt.log 2>&1 &
+    LT_PID=$!
+
+    # Wait for localtunnel URL to appear in lt.log (max 15 sec)
+    for i in {1..15}; do
+        LT_TUNNEL_URL=$(grep -o 'https://[-a-z0-9]*\.loca.lt' lt.log | head -n1 || true)
+        if [ -n "$LT_TUNNEL_URL" ]; then
+            break
+        fi
+        sleep 1
+    done
+
+    if [ -n "$LT_TUNNEL_URL" ]; then
+        echo_green ">> Localtunnel is live! Open this in browser:"
+        echo_blue "$LT_TUNNEL_URL"
+    else
+        echo_saffron "⚠️  Localtunnel failed or took too long."
+        echo_green ">> Attempting cloudflared tunnel (Cloudflare tunnel)..."
+        # Kill localtunnel if running
+        if [ -n "$LT_PID" ]; then
+            kill "$LT_PID" || true
+        fi
+
+        if ! command -v cloudflared &> /dev/null; then
+            echo_green ">> Installing cloudflared..."
+            wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -O cloudflared.deb
+            sudo dpkg -i cloudflared.deb
+            rm cloudflared.deb
+        fi
+
+        cloudflared tunnel --url http://localhost:3000 > cloudflared.log 2>&1 &
+        sleep 5
+
+        TUNNEL_URL=$(grep -o 'https://[^ ]*\.trycloudflare.com' cloudflared.log | head -n1)
+        if [ -n "$TUNNEL_URL" ]; then
+            echo_green ">> Cloudflared is live! Open this in browser:"
+            echo_blue "$TUNNEL_URL"
+        else
+            echo_saffron "⚠️  Cloudflared failed."
+            echo_green ">> Falling back to local browser open..."
+            xdg-open http://localhost:3000 || open http://localhost:3000 || echo ">> Open http://localhost:3000 manually."
+        fi
+    fi
 
     echo_green ">> Waiting for modal userData.json to be created..."
     for i in {1..30}; do
@@ -178,17 +186,17 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     done
 fi
 
-# Install Python dependencies
+# Install Python dependencies silently
 echo_green ">> Installing Python dependencies..."
-pip install --upgrade pip
+pip install --upgrade pip -q
 
 if [ -n "${CPU_ONLY:-}" ] || ! command -v nvidia-smi > /dev/null; then
-    pip install -r requirements-cpu.txt
+    pip install -r requirements-cpu.txt -q
     CONFIG_PATH="hivemind_exp/configs/mac/grpo-qwen-2.5-0.5b-deepseek-r1.yaml"
     GAME="gsm8k"
 else
-    pip install -r requirements-gpu.txt
-    pip install flash-attn --no-build-isolation
+    pip install -r requirements-gpu.txt -q
+    pip install flash-attn --no-build-isolation -q
     case "$PARAM_B" in
         32 | 72) CONFIG_PATH="hivemind_exp/configs/gpu/grpo-qwen-2.5-${PARAM_B}b-bnb-4bit-deepseek-r1.yaml" ;;
         *) CONFIG_PATH="hivemind_exp/configs/gpu/grpo-qwen-2.5-${PARAM_B}b-deepseek-r1.yaml" ;;
@@ -197,9 +205,9 @@ else
 fi
 
 # Prompt for Hugging Face token
-read -p ">> Push models to Hugging Face? [y/N]: " PUSH_HF
+read -rp ">> Push models to Hugging Face? [y/N]: " PUSH_HF
 if [[ "$PUSH_HF" =~ ^[Yy]$ ]]; then
-    read -p ">> Enter HF token: " HF_TOKEN
+    read -rp ">> Enter HF token: " HF_TOKEN
 else
     HF_TOKEN="None"
 fi
