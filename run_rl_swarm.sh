@@ -24,7 +24,7 @@ function cleanup() {
 
 trap cleanup EXIT
 
-# Display banner with Indian flag colors
+# Display banner with Indian flag colors without gaps
 echo -e "\033[38;5;208m"  # Saffron color
 cat << "EOF"
  __   __     _ _                            __ ___    __ ___  
@@ -45,7 +45,7 @@ cat << "EOF"
                              |___/                            
 EOF
 
-echo -e "\033[97m"  # White color for the tagline and kudos line
+echo -e "\033[97m"  # White color for tagline and kudos
 echo "      🐝 Welcome to RL-Swarm! Let's swarm-train some models! 🤖🔥"
 echo "      🙌 Kudos to the amazing Gensyn Team for building this! 💪🎉"
 echo -e "\033[0m"  # Reset colors
