@@ -34,14 +34,12 @@ trap cleanup EXIT
 clear
 echo -e "${SAFFRON}"
 cat << "EOF"
- __   __     _ _                            __ ___    __ ___  
- \ \ / /    (_) |                          / // _ \  / // _ \ 
-  \ V / __ _ _| | ___  _ __   __ _ ______ / /| (_) |/ /| (_) |
-   > < / _` | | |/ _ \| '_ \ / _` |______| '_ \__, | '_ \__, |
-  / . \ (_| | | | (_) | | | | (_| |      | (_) |/ /| (_) |/ / 
- /_/ \_\__,_|_|_|\___/|_| |_|\__, |       \___//_/  \___//_/  
-                              __/ |                           
-                             |___/                            
+____  ___      .__.__                                    ________________  ________________ 
+\   \/  /____  |__|  |   ____   ____    ____            /  _____/   __   \/  _____/   __   \
+ \     /\__  \ |  |  |  /  _ \ /    \  / ___\   ______ /   __  \\____    /   __  \\____    /
+ /     \ / __ \|  |  |_(  <_> )   |  \/ /_/  > /_____/ \  |__\  \  /    /\  |__\  \  /    / 
+/___/\  (____  /__|____/\____/|___|  /\___  /           \_____  / /____/  \_____  / /____/  
+      \_/    \/                    \//_____/                  \/                \/          
 EOF
 
 # Tagline and kudos with custom colors
@@ -93,13 +91,13 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     cd modal-login
     yarn install
 
-    echo_green ">> Starting login server..."
+    echo_green ">> Starting login server (local tunnel)..."
     yarn dev > /dev/null 2>&1 &
     SERVER_PID=$!
     sleep 3
     cd ..
 
-    echo_green ">> Attempting cloudflared tunnel..."
+    echo_green ">> Attempting cloudflared tunnel (Cloudflare tunnel)..."
     if ! command -v cloudflared &> /dev/null; then
         echo "Installing cloudflared..."
         wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -O cloudflared.deb
