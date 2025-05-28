@@ -70,17 +70,14 @@ trap cleanup EXIT
 
 echo -e "\033[38;5;224m"
 cat << "EOF"
-____  ___        .__ .__                                       ________ ________   ________ ________ 
-\   \/  /_____   |__||  |    ____    ____     ____            /  _____//   __   \ /  _____//   __   \
- \     / \__  \  |  ||  |   /  _ \  /    \   / ___\   ______ /   __  \ \____    //   __  \ \____    / 
- /     \  / __ \_|  ||  |__(  <_> )|   |  \ / /_/  > /_____/ \  |__\  \   /    / \  |__\  \   /    /  
-/___/\  \(____  /|__||____/ \____/ |___|  / \___  /           \_____  /  /____/   \_____  /  /____/   
-      \_/     \/                        \/ /_____/                  \/                  \/           
+    ██████  ██            ███████ ██     ██  █████  ██████  ███    ███
+    ██   ██ ██            ██      ██     ██ ██   ██ ██   ██ ████  ████
+    ██████  ██      █████ ███████ ██  █  ██ ███████ ██████  ██ ████ ██
+    ██   ██ ██                 ██ ██ ███ ██ ██   ██ ██   ██ ██  ██  ██
+    ██   ██ ███████       ███████  ███ ███  ██   ██ ██   ██ ██      ██
 
-🚀 Welcome to the RL Swarm!
-🤝 🙌 Shoutout to the brilliant minds at the Gensyn Team! 🔥
-🧠💻 Together, we’re pushing the boundaries of collaborative AI training!
-🌍 Let's make AI smarter, stronger, and more open—together!
+    From Gensyn
+
 EOF
 
 while true; do
@@ -122,6 +119,9 @@ while true; do
     esac
 done
 
+# Create logs directory if it doesn't exist
+mkdir -p "$ROOT/logs"
+
 if [ "$CONNECT_TO_TESTNET" = true ]; then
     # Run modal_login server.
     echo "Please login to create an Ethereum Server Wallet"
@@ -155,8 +155,20 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
             npm install -g --silent yarn
         fi
     fi
-    yarn install
-    yarn dev > /dev/null 2>&1 & # Run in background and suppress output
+
+    ENV_FILE="$ROOT"/modal-login/.env
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS version
+        sed -i '' "3s/.*/SMART_CONTRACT_ADDRESS=$SWARM_CONTRACT/" "$ENV_FILE"
+    else
+        # Linux version
+        sed -i "3s/.*/SMART_CONTRACT_ADDRESS=$SWARM_CONTRACT/" "$ENV_FILE"
+    fi
+
+    yarn install --immutable
+    echo "Building server"
+    yarn build > "$ROOT/logs/yarn.log" 2>&1
+    yarn start >> "$ROOT/logs/yarn.log" 2>&1 & # Run in background and log output
 
     SERVER_PID=$!  # Store the process ID
     echo "Started server process: $SERVER_PID"
@@ -192,15 +204,6 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
             sleep 5
         fi
     done
-
-    ENV_FILE="$ROOT"/modal-login/.env
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS version
-        sed -i '' "3s/.*/SMART_CONTRACT_ADDRESS=$SWARM_CONTRACT/" "$ENV_FILE"
-    else
-        # Linux version
-        sed -i "3s/.*/SMART_CONTRACT_ADDRESS=$SWARM_CONTRACT/" "$ENV_FILE"
-    fi
 fi
 
 echo_green ">> Getting requirements..."
@@ -217,10 +220,11 @@ else
     pip install flash-attn --no-build-isolation
 
     case "$PARAM_B" in
-        32 | 72) CONFIG_PATH="$ROOT/hivemind_exp/configs/gpu/grpo-qwen-2.5-${PARAM_B}b-bnb-4bit-deepseek-r1.yaml" && break ;;
-        0.5 | 1.5 | 7) CONFIG_PATH="$ROOT/hivemind_exp/configs/gpu/grpo-qwen-2.5-${PARAM_B}b-deepseek-r1.yaml" && break ;;
-        *)  echo ">>> Please answer in [0.5, 1.5, 7, 32, 72]." ;;
+        32 | 72) CONFIG_PATH="$ROOT/hivemind_exp/configs/gpu/grpo-qwen-2.5-${PARAM_B}b-bnb-4bit-deepseek-r1.yaml" ;;
+        0.5 | 1.5 | 7) CONFIG_PATH="$ROOT/hivemind_exp/configs/gpu/grpo-qwen-2.5-${PARAM_B}b-deepseek-r1.yaml" ;;
+        *) exit 1 ;;
     esac
+
     if [ "$USE_BIG_SWARM" = true ]; then
         GAME="dapo"
     else
