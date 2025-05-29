@@ -70,7 +70,7 @@ class GRPORunner:
         )
 
         quantization = parse_quantization(model_name)
-        if training_args.vllm_gpu_memory_utilization != 0.9: # Not default
+        if training_args.vllm_gpu_memory_utilization != 0.85: # Not default
             self.peak_memory_percentage = training_args.vllm_gpu_memory_utilization
         else:
             self.peak_memory_percentage=estimate_peak_mem_percentage(
