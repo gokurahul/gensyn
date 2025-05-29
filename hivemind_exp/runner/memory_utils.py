@@ -130,41 +130,44 @@ def estimate_peak_mem_percentage(
     grpo_config: GRPOConfig,
     quantization=Quantization.NONE,
 ) -> float:
-    lookup = vram_lookup[quantization]
+    print(f"🔍 Estimating peak memory for model: {model_name}")
 
-    # Look up estimated VRAM usage given parameter count.
-    estimate = 0.0
+    # Respect manual override if set
+    manual_util = getattr(grpo_config, "vllm_gpu_memory_utilization", None)
+    if manual_util is not None and manual_util != 0.9:
+        print(f"🛠  Using manually specified GPU utilization: {manual_util}")
+        return manual_util
+
+    lookup = vram_lookup[quantization]
     model_param_b = parse_param_count(model_name) / 1e9
+    estimate = 0.0
+
     for param_b, value in lookup.items():
         if param_b >= model_param_b:
             estimate = value * 1e9
             break
 
-    # Buffer for peak usage.
-    if model_param_b > 32:
-        estimate *= 1.25
-    else:
-        estimate *= 1.5
+    # Buffer for safety
+    estimate *= 1.5 if model_param_b <= 32 else 1.25
 
-    # Find percentage of available memory.
-    vllm_device = grpo_config.vllm_device
-    if vllm_device == "auto":
-        vllm_device = ""
-
+    # Get available memory
     if torch.cuda.is_available():
-        device = torch.device(vllm_device if vllm_device else "cuda:0")
+        device = torch.device(grpo_config.vllm_device or "cuda:0")
         free = get_cuda_free_memory(device)
     elif torch.backends.mps.is_available():
         free = get_mps_free_memory()
+    elif hasattr(torch, "xpu") and torch.xpu.is_available():  # type: ignore
+        device = torch.device(grpo_config.vllm_device or "xpu:0")
+        free = get_xpu_free_memory(device)
     else:
-        try:
-            if torch.xpu.is_available():  # type: ignore
-                device = torch.device(vllm_device if vllm_device else "xpu:0")
-                free = get_xpu_free_memory(device)
-            else:
-                free = get_cpu_free_memory()
-        except AttributeError:
-            pass
+        free = get_cpu_free_memory()
+
+    # Debug info
+    print(f"🔢 Model param size ≈ {model_param_b:.2f}B")
+    print(f"📦 Estimated VRAM needed: {estimate / 1e9:.2f} GB")
+    print(f"💾 Free memory: {free / 1e9:.2f} GB")
 
     percentage = estimate / free
-    return min(max(0.05, percentage), 0.95)
+    result = min(max(0.05, percentage), 0.95)
+    print(f"✅ Final memory percentage estimate: {result:.2f}")
+    return result
