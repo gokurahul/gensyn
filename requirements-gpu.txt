@@ -9,8 +9,8 @@ tensorboard
 torch
 transformers==4.48.2
 trl
-unsloth @ pip install git+https://github.com/gensyn-ai/unsloth@main
-unsloth_zoo @ pip install git+https://github.com/gensyn-ai/unsloth-zoo@main
+unsloth @ git+https://github.com/gensyn-ai/unsloth@main
+unsloth_zoo @ git+https://github.com/gensyn-ai/unsloth-zoo@main
 vllm==0.7.3
 wandb
 web3
