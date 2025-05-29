@@ -7,10 +7,10 @@ peft
 pytest
 tensorboard
 torch
-transformers==4.48.2
+transformers==4.51.3
 trl
-unsloth @ git+https://github.com/gensyn-ai/unsloth@main
-unsloth_zoo @ git+https://github.com/gensyn-ai/unsloth-zoo@main
+unsloth @ git+https://github.com/gensyn-ai/unsloth@unpin_proto
+unsloth_zoo @ git+https://github.com/gensyn-ai/unsloth-zoo@unpin_proto
 vllm==0.7.3
 wandb
 web3
