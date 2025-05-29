@@ -6,7 +6,7 @@ import {
   useSignerStatus,
   useUser,
 } from "@account-kit/react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export default function Home() {
   const user = useUser();
@@ -16,77 +16,89 @@ export default function Home() {
   const signer = useSigner();
 
   const [createdApiKey, setCreatedApiKey] = useState(false);
+  const [sawDisconnected, setSawDisconnected] = useState(false);
+  const [sawConnected, setSawConnected] = useState(false);
 
+  // For some reason, the signer status jumps from disconnected to initializing, 
+  // which makes keeping track of the status here tricky.
+  // Record that we ever saw a disconnected or connected status and make decisions on that.
   useEffect(() => {
-    // User logged out, so reset the state.
-    if (!user && createdApiKey) {
-      setCreatedApiKey(false);
+    if (signerStatus.status === "DISCONNECTED") {
+      setSawDisconnected(true);
     }
+    if (signerStatus.status === "CONNECTED") {
+      setSawConnected(true);
+    }
+  }, [signerStatus.status]);
 
-    // Waiting for user to be logged in.
-    if (!user || !signer || !signerStatus.isConnected || createdApiKey) {
+  const handleAll = useCallback(async () => {
+    if (!user || !signer) {
+      console.log("handleAll: no user or signer");
       return;
     }
 
-    const submitStamp = async () => {
-      const whoamiStamp = await signer.inner.stampWhoami();
+    try {
+      const whoamiStamp = await signer?.inner.stampWhoami();
+      if (!whoamiStamp) {
+        console.log("No whoami stamp");
+        return;
+      }
+
       const resp = await fetch("/api/get-api-key", {
         method: "POST",
         body: JSON.stringify({ whoamiStamp }),
       });
-      return (await resp.json()) as { publicKey: string };
-    };
 
-    const createApiKey = async (publicKey: string) => {
-      await signer.inner.experimental_createApiKey({
+      const { publicKey } = await resp.json() || {};
+      if (!publicKey) {
+        console.log("No public key");
+        return;
+      }
+
+      await signer?.inner.experimental_createApiKey({
         name: `server-signer-${new Date().getTime()}`,
         publicKey,
         expirationSec: 60 * 60 * 24 * 62, // 62 days
       });
-    };
 
-    const handleAll = async () => {
-      try {
-        const { publicKey } = await submitStamp();
-        await createApiKey(publicKey);
-        await fetch("/api/set-api-key-activated", {
-          method: "POST",
-          body: JSON.stringify({ orgId: user.orgId, apiKey: publicKey }),
-        });
-        setCreatedApiKey(true);
-      } catch (err) {
-        console.error(err);
-        alert("Something went wrong. Please check the console for details.");
-      }
-    };
+      await fetch("/api/set-api-key-activated", {
+        method: "POST",
+        body: JSON.stringify({ orgId: user.orgId, apiKey: publicKey }),
+      });
 
-    handleAll();
-  }, [createdApiKey, signer, signerStatus.isConnected, user]);
+      setCreatedApiKey(true);
+    } catch (err) {
+      console.error(err);
+      window.alert("Error logging in. See console for details.");
+    }
+  }, [signer, user]);
+
+  useEffect(() => {
+    if (sawConnected) {
+      handleAll();
+    }
+  }, [handleAll, sawConnected]);
+
 
   // Show alert if crypto.subtle isn't available.
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
+    if (typeof window === undefined) {
+      return;
+    }
     try {
       if (typeof window.crypto.subtle !== "object") {
         throw new Error("window.crypto.subtle is not available");
       }
     } catch (err) {
       alert(
-        "Crypto API is not available in this browser. Please use HTTPS or localhost."
+        "Crypto api is not available in browser. Please be sure that the app is being accessed via localhost or a secure connection.",
       );
     }
   }, []);
 
-  useEffect(() => {
-    if (!user && !signerStatus.isInitializing) {
-      openAuthModal();
-    }
-  }, [user, signerStatus.isInitializing]);
-
   return (
     <main className="flex min-h-screen flex-col items-center gap-4 justify-center text-center">
-      {signerStatus.isInitializing || (user && !createdApiKey) ? (
+      {(!sawDisconnected && !sawConnected) || (user && !createdApiKey) ? (
         <>Loading...</>
       ) : user ? (
         <div className="card">
